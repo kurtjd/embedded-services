@@ -9,6 +9,7 @@ members = [
     "power-button-service",
     "power-policy-service",
     "storage-bus",
+    "thermal-service",
     "type-c-service",
 ]
 exclude = ["examples/*"]
@@ -37,6 +38,8 @@ embassy-sync = { git = "https://github.com/embassy-rs/embassy" }
 embassy-time = { git = "https://github.com/embassy-rs/embassy" }
 embassy-time-driver = { git = "https://github.com/embassy-rs/embassy" }
 embedded-batteries-async = { git = "https://github.com/OpenDevicePartnership/embedded-batteries" }
+embedded-fans-async = { git = "https://github.com/OpenDevicePartnership/embedded-fans" }
+embedded-sensors-hal-async = "0.1.0"
 embedded-cfu-protocol = { git = "https://github.com/OpenDevicePartnership/embedded-cfu" }
 embedded-hal = "1.0"
 embedded-hal-async = "1.0"
@@ -54,3 +57,6 @@ postcard = "1.*"
 rand_core = "0.6.4"
 serde = { version = "1.0.*", default-features = false }
 tps6699x = { git = "https://github.com/OpenDevicePartnership/tps6699x" }
+
+[patch.crates-io]
+embedded-fans = { git = "https://github.com/OpenDevicePartnership/embedded-fans" }

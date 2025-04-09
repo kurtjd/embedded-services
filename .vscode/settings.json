@@ -12,8 +12,11 @@
     "rust-analyzer.cargo.target": "thumbv8m.main-none-eabihf",
     "rust-analyzer.cargo.features": [],
     "rust-analyzer.linkedProjects": [
+        "embedded-service/Cargo.toml",
+        "thermal-service/Cargo.toml",
+        "battery-service/Cargo.toml",
         "examples/rt633/Cargo.toml",
         "examples/rt685s-evk/Cargo.toml",
-        "examples/std/Cargo.toml"
+        "examples/std/Cargo.toml",
     ]
 }
