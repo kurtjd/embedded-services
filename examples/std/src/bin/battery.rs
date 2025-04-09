@@ -22,14 +22,14 @@ mod espi_service {
 
     pub struct Service {
         endpoint: comms::Endpoint,
-        signal: Signal<NoopRawMutex, BatteryMessage>,
+        _signal: Signal<NoopRawMutex, BatteryMessage>,
     }
 
     impl Service {
         pub fn new() -> Self {
             Service {
                 endpoint: comms::Endpoint::uninit(EndpointID::External(External::Host)),
-                signal: Signal::new(),
+                _signal: Signal::new(),
             }
         }
     }
@@ -63,12 +63,12 @@ mod espi_service {
 }
 
 struct MockCharger<I2c: embedded_hal_async::i2c::I2c> {
-    mock_bus: I2c,
+    _mock_bus: I2c,
 }
 
 impl<I2c: embedded_hal_async::i2c::I2c> MockCharger<I2c> {
     pub fn new(i2c: I2c) -> Self {
-        MockCharger { mock_bus: i2c }
+        MockCharger { _mock_bus: i2c }
     }
 }
 
@@ -77,22 +77,22 @@ impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::charger::Error
 }
 
 impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::charger::Charger for MockCharger<I2c> {
-    async fn charging_current(&mut self, current: MilliAmps) -> Result<MilliAmps, Self::Error> {
+    async fn charging_current(&mut self, _current: MilliAmps) -> Result<MilliAmps, Self::Error> {
         Ok(0)
     }
 
-    async fn charging_voltage(&mut self, voltage: MilliVolts) -> Result<MilliVolts, Self::Error> {
+    async fn charging_voltage(&mut self, _voltage: MilliVolts) -> Result<MilliVolts, Self::Error> {
         Ok(0)
     }
 }
 
 struct MockFuelGauge<I2c: embedded_hal_async::i2c::I2c> {
-    mock_bus: I2c,
+    _mock_bus: I2c,
 }
 
 impl<I2c: embedded_hal_async::i2c::I2c> MockFuelGauge<I2c> {
     pub fn new(i2c: I2c) -> Self {
-        MockFuelGauge { mock_bus: i2c }
+        MockFuelGauge { _mock_bus: i2c }
     }
 }
 
@@ -105,7 +105,7 @@ impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::smart_battery:
         Ok(CapacityModeValue::MilliAmpUnsigned(0))
     }
 
-    async fn set_remaining_capacity_alarm(&mut self, capacity: CapacityModeValue) -> Result<(), Self::Error> {
+    async fn set_remaining_capacity_alarm(&mut self, _capacity: CapacityModeValue) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -113,7 +113,7 @@ impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::smart_battery:
         Ok(0)
     }
 
-    async fn set_remaining_time_alarm(&mut self, time: Minutes) -> Result<(), Self::Error> {
+    async fn set_remaining_time_alarm(&mut self, _time: Minutes) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -121,7 +121,7 @@ impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::smart_battery:
         Ok(BatteryModeFields::new())
     }
 
-    async fn set_battery_mode(&mut self, flags: BatteryModeFields) -> Result<(), Self::Error> {
+    async fn set_battery_mode(&mut self, _flags: BatteryModeFields) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -129,7 +129,7 @@ impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::smart_battery:
         Ok(CapacityModeSignedValue::MilliAmpSigned(0))
     }
 
-    async fn set_at_rate(&mut self, rate: CapacityModeSignedValue) -> Result<(), Self::Error> {
+    async fn set_at_rate(&mut self, _rate: CapacityModeSignedValue) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -237,15 +237,15 @@ impl<I2c: embedded_hal_async::i2c::I2c> embedded_batteries_async::smart_battery:
         Ok(0)
     }
 
-    async fn manufacturer_name(&mut self, name: &mut [u8]) -> Result<(), Self::Error> {
+    async fn manufacturer_name(&mut self, _name: &mut [u8]) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn device_name(&mut self, name: &mut [u8]) -> Result<(), Self::Error> {
+    async fn device_name(&mut self, _name: &mut [u8]) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn device_chemistry(&mut self, chemistry: &mut [u8]) -> Result<(), Self::Error> {
+    async fn device_chemistry(&mut self, _chemistry: &mut [u8]) -> Result<(), Self::Error> {
         Ok(())
     }
 }

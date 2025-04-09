@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-extern crate embedded_services_examples;
+extern crate rt685s_evk_example;
 
 use defmt::info;
 use embassy_executor::Spawner;

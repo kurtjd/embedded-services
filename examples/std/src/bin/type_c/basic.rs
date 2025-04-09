@@ -9,8 +9,8 @@ use log::*;
 use static_cell::StaticCell;
 
 const CONTROLLER0: ControllerId = ControllerId(0);
-const PORT0: PortId = GlobalPortId(0);
-const PORT1: PortId = GlobalPortId(1);
+const PORT0: GlobalPortId = GlobalPortId(0);
+const PORT1: GlobalPortId = GlobalPortId(1);
 const POWER0: power::policy::DeviceId = power::policy::DeviceId(0);
 
 mod test_controller {
@@ -71,11 +71,7 @@ mod test_controller {
             Ok(match command.data {
                 controller::PortCommandData::PortStatus => {
                     info!("Port status for port {}", command.port.0);
-                    controller::PortResponseData::PortStatus(PortStatus {
-                        connection_present: false,
-                        contract: None,
-                        debug_connection: false,
-                    })
+                    controller::PortResponseData::PortStatus(PortStatus::new())
                 }
                 _ => {
                     info!("Port command for port {}", command.port.0);

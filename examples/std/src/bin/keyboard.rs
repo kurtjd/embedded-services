@@ -93,7 +93,6 @@ mod host {
 
                     Ok(())
                 }
-                _ => Err(comms::MailboxDelegateError::InvalidData),
             }
         }
     }

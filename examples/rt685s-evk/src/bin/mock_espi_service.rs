@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-extern crate embedded_services_examples;
+extern crate rt685s_evk_example;
 
 use defmt::info;
 use embassy_executor::Spawner;
@@ -47,7 +47,7 @@ mod espi_service {
             let msg = message
                 .data
                 .get::<TxMessage>()
-                .ok_or(comms::MailbxDelegateError::MessageNotFound)?;
+                .ok_or(comms::MailboxDelegateError::MessageNotFound)?;
 
             self.signal.signal(*msg);
 

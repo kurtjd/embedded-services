@@ -1,3 +1,6 @@
+use core::future::poll_fn;
+use core::future::Future;
+use core::task::Poll;
 use embassy_executor::{Executor, Spawner};
 use embassy_sync::once_lock::OnceLock;
 use embassy_time::Timer;
@@ -5,9 +8,11 @@ use embedded_services::comms;
 use embedded_services::power::{self, policy};
 use embedded_services::type_c::{controller, ControllerId};
 use embedded_usb_pd::type_c::Current;
+use embedded_usb_pd::type_c::Current as TypecCurrent;
 use embedded_usb_pd::Error;
 use embedded_usb_pd::GlobalPortId;
 use embedded_usb_pd::PortId as LocalPortId;
+use embedded_usb_pd::PowerRole;
 use log::*;
 use static_cell::StaticCell;
 
@@ -40,12 +45,8 @@ mod test_controller {
         }
 
         /// Simulate a connection
-        pub fn connect(&self, contract: Contract) {
-            self.status.set(PortStatus {
-                contract: Some(contract),
-                connection_present: true,
-                debug_connection: false,
-            });
+        pub fn connect(&self, _contract: Contract) {
+            self.status.set(PortStatus::new());
 
             let mut events = PortEventKind::none();
             events.set_plug_inserted_or_removed(true);
@@ -68,12 +69,8 @@ mod test_controller {
         }
 
         /// Simulate a debug accessory source connecting
-        pub fn connect_debug_accessory_source(&self, current: Current) {
-            self.status.set(PortStatus {
-                contract: Some(Contract::Source(current.into())),
-                connection_present: true,
-                debug_connection: true,
-            });
+        pub fn connect_debug_accessory_source(&self, _current: Current) {
+            self.status.set(PortStatus::new());
 
             let mut events = PortEventKind::none();
             events.set_plug_inserted_or_removed(true);
@@ -122,6 +119,40 @@ mod test_controller {
         async fn enable_sink_path(&mut self, _port: LocalPortId, enable: bool) -> Result<(), Error<Self::BusError>> {
             debug!("Enable sink path: {}", enable);
             Ok(())
+        }
+
+        fn set_sourcing(
+            &mut self,
+            _port: LocalPortId,
+            _enable: bool,
+        ) -> impl Future<Output = Result<(), Error<Self::BusError>>> {
+            debug!("Set sourcing: {}", _enable);
+            poll_fn(|_cx| {
+                return Poll::Ready(Ok(()));
+            })
+        }
+
+        fn set_source_current(
+            &mut self,
+            _port: LocalPortId,
+            _current: TypecCurrent,
+            _signal_event: bool,
+        ) -> impl Future<Output = Result<(), Error<Self::BusError>>> {
+            debug!("Set source current: {:?}", _current);
+            poll_fn(|_cx| {
+                return Poll::Ready(Ok(()));
+            })
+        }
+
+        fn request_pr_swap(
+            &mut self,
+            _port: LocalPortId,
+            _role: PowerRole,
+        ) -> impl Future<Output = Result<(), Error<Self::BusError>>> {
+            debug!("Request PR swap: {:?}", _role);
+            poll_fn(|_cx| {
+                return Poll::Ready(Ok(()));
+            })
         }
     }
 

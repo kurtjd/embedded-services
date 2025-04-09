@@ -41,7 +41,7 @@ impl comms::MailboxDelegate for Device {
             .get::<hid::Message>()
             .ok_or(comms::MailboxDelegateError::MessageNotFound)?;
 
-        if message.unwrap().id != self.id {
+        if message.id != self.id {
             Err(comms::MailboxDelegateError::InvalidId)
         } else {
             info!("{:?} got message", self.id);

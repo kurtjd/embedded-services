@@ -4,7 +4,9 @@ use embedded_cfu_protocol::CfuWriterDefault;
 use log::*;
 use static_cell::StaticCell;
 
-use embedded_cfu_protocol::protocol_definitions::{ComponentId, FwUpdateOfferCommand, FwVersion, MAX_SUBCMPT_COUNT};
+use embedded_cfu_protocol::protocol_definitions::{
+    ComponentId, FwUpdateOffer, FwVersion, HostToken, MAX_SUBCMPT_COUNT,
+};
 use embedded_services::cfu;
 use embedded_services::cfu::component::CfuComponentDefault;
 
@@ -47,8 +49,8 @@ async fn run(spawner: Spawner) {
     cfu::register_device(device1).await.unwrap();
     spawner.must_spawn(device_task1(device1));
 
-    let dummy_offer0 = FwUpdateOfferCommand::new(
-        0,
+    let dummy_offer0 = FwUpdateOffer::new(
+        HostToken::Driver,
         1,
         FwVersion {
             major: 1,
@@ -58,8 +60,8 @@ async fn run(spawner: Spawner) {
         0,
         0,
     );
-    let dummy_offer1 = FwUpdateOfferCommand::new(
-        0,
+    let dummy_offer1 = FwUpdateOffer::new(
+        HostToken::Driver,
         2,
         FwVersion {
             major: 1,

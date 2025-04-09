@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-extern crate embedded_services_examples;
+extern crate rt685s_evk_example;
 
 use defmt::info;
 use embassy_executor::Spawner;
@@ -115,8 +115,6 @@ async fn main(spawner: Spawner) {
     embedded_services::init().await;
 
     let p = embassy_imxrt::init(Default::default());
-
-    unsafe { gpio::init() };
 
     // Create a power button instance
     let button_a = Input::new(p.PIO1_1, Pull::Up, Inverter::Disabled);
