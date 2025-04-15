@@ -1,8 +1,10 @@
 //! Fan Device
 use super::DeviceId;
 use crate::intrusive_list;
+use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
+use embedded_fans_async as fan_traits;
 
 /// Fan error type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,6 +12,7 @@ use embassy_sync::channel::Channel;
 pub enum Error {
     /// An unknown error occurred
     Unknown,
+    // TODO: More errors
 }
 
 /// Fan request
@@ -76,5 +79,39 @@ impl Device {
 impl intrusive_list::NodeContainer for Device {
     fn get_node(&self) -> &crate::Node {
         &self.node
+    }
+}
+
+/// Fan struct containing device for comms and driver
+pub struct Fan<T: fan_traits::Fan + fan_traits::RpmSense> {
+    /// Underlying device
+    pub device: Device,
+    /// Underlying driver
+    pub driver: RefCell<T>,
+}
+
+impl<T: fan_traits::Fan + fan_traits::RpmSense> Fan<T> {
+    /// New fan
+    pub fn new(id: DeviceId, driver: T) -> Self {
+        Self {
+            device: Device::new(id),
+            driver: RefCell::new(driver),
+        }
+    }
+
+    /// Process request for fan
+    /// If this functionality is too generic, a custom request process method can be written
+    pub async fn process_request(&self) {
+        let request = self.device.wait_request().await;
+        match request {
+            Request::CurRpm => {
+                let rpm = self.driver.borrow_mut().rpm().await.unwrap();
+                self.device.send_response(Ok(Response::Ack(rpm as u32))).await;
+            }
+            Request::SetRpm(rpm) => {
+                self.driver.borrow_mut().set_speed_rpm(rpm as u16).await.unwrap();
+                self.device.send_response(Ok(Response::Ack(rpm))).await;
+            }
+        }
     }
 }

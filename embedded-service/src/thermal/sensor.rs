@@ -1,8 +1,10 @@
 //! Sensor Device
 use super::DeviceId;
 use crate::intrusive_list;
+use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
+use embedded_sensors_hal_async::temperature::TemperatureSensor;
 
 /// Sensor error type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,6 +12,7 @@ use embassy_sync::channel::Channel;
 pub enum Error {
     /// An unknown error occurred
     Unknown,
+    // TODO: More errors
 }
 
 /// Sensor request
@@ -74,5 +77,35 @@ impl Device {
 impl intrusive_list::NodeContainer for Device {
     fn get_node(&self) -> &crate::Node {
         &self.node
+    }
+}
+
+/// Sensor struct containing device for comms and driver
+pub struct Sensor<T: TemperatureSensor> {
+    /// Underlying device
+    pub device: Device,
+    /// Underlying driver
+    pub driver: RefCell<T>,
+}
+
+impl<T: TemperatureSensor> Sensor<T> {
+    /// New sensor
+    pub fn new(id: DeviceId, driver: T) -> Self {
+        Self {
+            device: Device::new(id),
+            driver: RefCell::new(driver),
+        }
+    }
+
+    /// Process request for sensor
+    /// If this functionality is too generic, a custom request process method can be written
+    pub async fn process_request(&self) {
+        let request = self.device.wait_request().await;
+        match request {
+            Request::CurTemp => {
+                let temp = self.driver.borrow_mut().temperature().await.unwrap();
+                self.device.send_response(Ok(Response::Ack(temp))).await;
+            }
+        }
     }
 }

@@ -1,20 +1,19 @@
 use embassy_executor::Spawner;
 use embassy_sync::once_lock::OnceLock;
-use embassy_time::Timer;
 use embedded_fans_async as fan_trait;
 use embedded_sensors_hal_async::{
     sensor as sensor_trait,
     temperature::{DegreesCelsius, TemperatureSensor},
 };
-use embedded_services::ec_type::message::ThermalMessage;
+use embedded_services::info;
 use embedded_services::thermal::{self, fan, sensor};
-use embedded_services::{comms, info};
 use fan_trait::{Fan, RpmSense};
-use std::cell::RefCell;
 use thermal_service;
 
-mod espi_service {
+// A simple mock "transport" service for demo purposes
+mod transport_service {
     use embassy_sync::once_lock::OnceLock;
+    use embassy_time::Timer;
     use embedded_services::comms::{self, EndpointID, External};
     use embedded_services::ec_type::message::ThermalMessage;
     use log::info;
@@ -32,6 +31,7 @@ mod espi_service {
     }
 
     impl comms::MailboxDelegate for Service {
+        // This simple service just assumes every message received is a response to a previous message sent
         fn receive(&self, message: &comms::Message) -> Result<(), comms::MailboxDelegateError> {
             let msg = message
                 .data
@@ -51,22 +51,67 @@ mod espi_service {
                     info!("Current average temperature: {} *C", tmp);
                     Ok(())
                 }
+
+                // TODO: Handle other possible messages
                 _ => Err(comms::MailboxDelegateError::InvalidData),
             }
         }
     }
 
-    pub static ESPI_SERVICE: OnceLock<Service> = OnceLock::new();
+    pub static TRANSPORT_SERVICE: OnceLock<Service> = OnceLock::new();
 
     pub async fn init() {
-        let espi_service = ESPI_SERVICE.get_or_init(|| Service::new());
+        let transport_service = TRANSPORT_SERVICE.get_or_init(|| Service::new());
 
-        comms::register_endpoint(espi_service, &espi_service.endpoint)
+        comms::register_endpoint(transport_service, &transport_service.endpoint)
             .await
             .unwrap();
     }
+
+    // Demo simulating routing messages from the "host" to the thermal service
+    #[embassy_executor::task]
+    pub async fn transport_task() {
+        init().await;
+        let s = TRANSPORT_SERVICE.get().await;
+
+        info!("Staring transport task");
+
+        // Set fan on temperature
+        Timer::after_millis(1000).await;
+        s.endpoint
+            .send(
+                comms::EndpointID::Internal(comms::Internal::Thermal),
+                &ThermalMessage::Fan1OnTemp(100),
+            )
+            .await
+            .unwrap();
+        Timer::after_millis(1000).await;
+
+        loop {
+            // Request average temperature
+            s.endpoint
+                .send(
+                    comms::EndpointID::Internal(comms::Internal::Thermal),
+                    &ThermalMessage::Tmp1Val(0),
+                )
+                .await
+                .unwrap();
+            Timer::after_millis(500).await;
+
+            // Request current fan RPM
+            s.endpoint
+                .send(
+                    comms::EndpointID::Internal(comms::Internal::Thermal),
+                    &ThermalMessage::Fan1CurRpm(0),
+                )
+                .await
+                .unwrap();
+            Timer::after_millis(500).await;
+        }
+    }
 }
 
+// An example mock sensor with the embedded-sensors traits implemented
 struct MockSensor {
     start_temp: f32,
 }
@@ -96,30 +141,7 @@ impl TemperatureSensor for MockSensor {
     }
 }
 
-struct SensorDevice {
-    device: thermal::sensor::Device,
-    driver: RefCell<MockSensor>,
-}
-
-impl SensorDevice {
-    fn new(id: thermal::DeviceId) -> Self {
-        Self {
-            device: thermal::sensor::Device::new(id),
-            driver: RefCell::new(MockSensor::new(50.0)),
-        }
-    }
-
-    async fn process_request(&self) {
-        let request = self.device.wait_request().await;
-        match request {
-            sensor::Request::CurTemp => {
-                let temp = self.driver.borrow_mut().temperature().await.unwrap();
-                self.device.send_response(Ok(sensor::Response::Ack(temp))).await;
-            }
-        }
-    }
-}
-
+// An example mock fan with the embedded-fans traits implemented
 struct MockFan {
     rpm: u32,
 }
@@ -167,87 +189,21 @@ impl RpmSense for MockFan {
     }
 }
 
-struct FanDevice {
-    device: thermal::fan::Device,
-    driver: RefCell<MockFan>,
-}
-
-impl FanDevice {
-    fn new(id: thermal::DeviceId) -> Self {
-        Self {
-            device: thermal::fan::Device::new(id),
-            driver: RefCell::new(MockFan::new()),
-        }
-    }
-
-    async fn process_request(&self) {
-        let request = self.device.wait_request().await;
-        match request {
-            fan::Request::CurRpm => {
-                let rpm = self.driver.borrow_mut().rpm().await.unwrap();
-                self.device.send_response(Ok(fan::Response::Ack(rpm as u32))).await;
-            }
-            fan::Request::SetRpm(rpm) => {
-                self.driver.borrow_mut().set_speed_rpm(rpm as u16).await.unwrap();
-                self.device.send_response(Ok(fan::Response::Ack(rpm))).await;
-            }
-        }
-    }
+// A task for each device
+// Device tasks can use the generic device task or implement their own
+#[embassy_executor::task]
+async fn sensor_task_0(sensor: &'static sensor::Sensor<MockSensor>) {
+    thermal_service::sensor_task(sensor).await;
 }
 
 #[embassy_executor::task]
-async fn sensor_task(sensor: &'static SensorDevice) {
-    loop {
-        sensor.process_request().await;
-    }
+async fn sensor_task_1(sensor: &'static sensor::Sensor<MockSensor>) {
+    thermal_service::sensor_task(sensor).await;
 }
 
 #[embassy_executor::task]
-async fn fan_task(fan: &'static FanDevice) {
-    loop {
-        fan.process_request().await;
-    }
-}
-
-#[embassy_executor::task]
-async fn espi_task() {
-    espi_service::init().await;
-    let s = espi_service::ESPI_SERVICE.get().await;
-
-    info!("Staring eSPI task");
-
-    // Set fan on temperature
-    Timer::after_millis(1000).await;
-    s.endpoint
-        .send(
-            comms::EndpointID::Internal(comms::Internal::Thermal),
-            &ThermalMessage::Fan1OnTemp(100),
-        )
-        .await
-        .unwrap();
-    Timer::after_millis(1000).await;
-
-    loop {
-        // Request average temperature
-        s.endpoint
-            .send(
-                comms::EndpointID::Internal(comms::Internal::Thermal),
-                &ThermalMessage::Tmp1Val(0),
-            )
-            .await
-            .unwrap();
-        Timer::after_millis(500).await;
-
-        // Request current fan RPM
-        s.endpoint
-            .send(
-                comms::EndpointID::Internal(comms::Internal::Thermal),
-                &ThermalMessage::Fan1CurRpm(0),
-            )
-            .await
-            .unwrap();
-        Timer::after_millis(500).await;
-    }
+async fn fan_task_0(fan: &'static fan::Fan<MockFan>) {
+    thermal_service::fan_task(fan).await;
 }
 
 #[embassy_executor::main]
@@ -256,17 +212,27 @@ async fn main(spawner: Spawner) {
     embedded_services::init().await;
 
     spawner.must_spawn(thermal_service::thermal_service_task(spawner));
-    spawner.must_spawn(espi_task());
+    spawner.must_spawn(transport_service::transport_task());
 
-    info!("Creating sensor device");
-    static SENSOR: OnceLock<SensorDevice> = OnceLock::new();
-    let sensor = SENSOR.get_or_init(|| SensorDevice::new(thermal::DeviceId(0)));
-    thermal::register_sensor(&sensor.device).await.unwrap();
-    spawner.must_spawn(sensor_task(sensor));
+    // For each sensor and fan, we initialize the proper struct which we also pass a driver to
+    // We then register it with the thermal service (which stores it in a linked list)
+    // Finally we spawn a task for that device, which typically entails waiting for messages then acting
+
+    info!("Creating sensor device 0");
+    static SENSOR_0: OnceLock<sensor::Sensor<MockSensor>> = OnceLock::new();
+    let sensor_0 = SENSOR_0.get_or_init(|| sensor::Sensor::new(thermal::DeviceId(0), MockSensor::new(50.0)));
+    thermal::register_sensor(&sensor_0.device).await.unwrap();
+    spawner.must_spawn(sensor_task_0(sensor_0));
+
+    info!("Creating sensor device 1");
+    static SENSOR_1: OnceLock<sensor::Sensor<MockSensor>> = OnceLock::new();
+    let sensor_1 = SENSOR_1.get_or_init(|| sensor::Sensor::new(thermal::DeviceId(1), MockSensor::new(52.0)));
+    thermal::register_sensor(&sensor_1.device).await.unwrap();
+    spawner.must_spawn(sensor_task_1(sensor_1));
 
     info!("Creating fan device");
-    static FAN: OnceLock<FanDevice> = OnceLock::new();
-    let fan = FAN.get_or_init(|| FanDevice::new(thermal::DeviceId(0)));
+    static FAN: OnceLock<fan::Fan<MockFan>> = OnceLock::new();
+    let fan = FAN.get_or_init(|| fan::Fan::new(thermal::DeviceId(0), MockFan::new()));
     thermal::register_fan(&fan.device).await.unwrap();
-    spawner.must_spawn(fan_task(fan));
+    spawner.must_spawn(fan_task_0(fan));
 }

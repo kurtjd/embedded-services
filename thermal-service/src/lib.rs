@@ -5,6 +5,8 @@ use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::once_lock::OnceLock;
 use embassy_time::Timer;
+use embedded_fans_async::{Fan, RpmSense};
+use embedded_sensors_hal_async::temperature::TemperatureSensor;
 use embedded_services::ec_type::message::ThermalMessage;
 use embedded_services::thermal::{self, fan, sensor};
 use embedded_services::{comms, error, info};
@@ -188,5 +190,23 @@ pub async fn thermal_service_task(spawner: embassy_executor::Spawner) {
 
         // Just wait some time
         Timer::after_millis(1000).await;
+    }
+}
+
+/* Below are generic task functions for sensors and fans.
+ * However, these don't need to be used and instead custom tasks can be written.
+ */
+
+/// Should be called by a wrapper task per sensor (since tasks themselves cannot be generic)
+pub async fn sensor_task<T: TemperatureSensor>(sensor: &'static sensor::Sensor<T>) {
+    loop {
+        sensor.process_request().await;
+    }
+}
+
+/// Should be called by a wrapper task per fan (since tasks themselves cannot be generic)
+pub async fn fan_task<T: Fan + RpmSense>(fan: &'static fan::Fan<T>) {
+    loop {
+        fan.process_request().await;
     }
 }
