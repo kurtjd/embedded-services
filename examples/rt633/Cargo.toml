@@ -51,3 +51,6 @@ bq25773 = { git = "https://github.com/OpenDevicePartnership/bq25773" }
 bq40z50 = { git = "https://github.com/OpenDevicePartnership/bq40z50" }
 static_cell = "2.1.0"
 embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", default-features = false }
+
+[patch.crates-io]
+embedded-fans = { git = "https://github.com/OpenDevicePartnership/embedded-fans" }
