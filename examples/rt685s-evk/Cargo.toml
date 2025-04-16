@@ -66,5 +66,10 @@ static_cell = "2.1.0"
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 
+platform-service = { path = "../../platform-service", features = [
+    "defmt",
+    "imxrt685",
+] }
+
 [patch.crates-io]
 embedded-fans = { git = "https://github.com/OpenDevicePartnership/embedded-fans" }

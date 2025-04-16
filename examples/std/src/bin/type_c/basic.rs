@@ -14,7 +14,7 @@ const PORT1: GlobalPortId = GlobalPortId(1);
 const POWER0: power::policy::DeviceId = power::policy::DeviceId(0);
 
 mod test_controller {
-    use embedded_services::type_c::controller::PortStatus;
+    use embedded_services::type_c::controller::{ControllerStatus, PortStatus};
 
     use super::*;
 
@@ -46,11 +46,18 @@ mod test_controller {
         async fn process_controller_command(
             &self,
             command: controller::InternalCommandData,
-        ) -> Result<controller::InternalResponseData, Error> {
+        ) -> Result<controller::InternalResponseData<'static>, Error> {
             match command {
                 controller::InternalCommandData::Reset => {
                     info!("Reset controller");
                     Ok(controller::InternalResponseData::Complete)
+                }
+                controller::InternalCommandData::Status => {
+                    info!("Get controller status");
+                    Ok(controller::InternalResponseData::Status(ControllerStatus {
+                        mode: "Test",
+                        valid_fw_bank: true,
+                    }))
                 }
             }
         }
@@ -131,6 +138,9 @@ async fn task(spawner: Spawner) {
     info!("Reset port 0 done");
     context.reset_port(PORT1, lpm::ResetType::Data).await.unwrap();
     info!("Reset port 1 done");
+
+    let status = context.get_controller_status(CONTROLLER0).await.unwrap();
+    info!("Controller 0 status: {:#?}", status);
 
     let status = context.get_port_status(PORT0).await.unwrap();
     info!("Port 0 status: {:#?}", status);

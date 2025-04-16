@@ -114,6 +114,8 @@ pub type PortResponse = Result<PortResponseData, PdError>;
 pub enum InternalCommandData {
     /// Reset the PD controller
     Reset,
+    /// Get controller status
+    Status,
 }
 
 /// PD controller command
@@ -131,20 +133,22 @@ pub enum Command {
 /// Controller-specific response data
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum InternalResponseData {
+pub enum InternalResponseData<'a> {
     /// Command complete
     Complete,
+    /// Controller status
+    Status(ControllerStatus<'a>),
 }
 
 /// Response for controller-specific commands
-pub type InternalResponse = Result<InternalResponseData, PdError>;
+pub type InternalResponse<'a> = Result<InternalResponseData<'a>, PdError>;
 
 /// PD controller command response
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Response {
+pub enum Response<'a> {
     /// Controller response
-    Controller(InternalResponse),
+    Controller(InternalResponse<'a>),
     /// UCSI response passthrough
     Lpm(lpm::Response),
     /// Port response
@@ -168,7 +172,7 @@ pub struct Device<'a> {
     ports: &'a [GlobalPortId],
     num_ports: usize,
     command: Channel<NoopRawMutex, Command, 1>,
-    response: Channel<NoopRawMutex, Response, 1>,
+    response: Channel<NoopRawMutex, Response<'static>, 1>,
 }
 
 impl intrusive_list::NodeContainer for Device<'static> {
@@ -216,7 +220,7 @@ impl<'a> Device<'a> {
     }
 
     /// Send response
-    pub async fn send_response(&self, response: Response) {
+    pub async fn send_response(&self, response: Response<'static>) {
         self.response.send(response).await;
     }
 
@@ -371,7 +375,7 @@ impl ContextToken {
         &self,
         controller_id: ControllerId,
         command: InternalCommandData,
-    ) -> Result<InternalResponseData, PdError> {
+    ) -> Result<InternalResponseData<'static>, PdError> {
         let node = CONTEXT
             .get()
             .await
@@ -403,7 +407,7 @@ impl ContextToken {
         controller_id: ControllerId,
         command: InternalCommandData,
         timeout: Duration,
-    ) -> Result<InternalResponseData, PdError> {
+    ) -> Result<InternalResponseData<'static>, PdError> {
         match with_timeout(timeout, self.send_controller_command_no_timeout(controller_id, command)).await {
             Ok(response) => response,
             Err(_) => Err(PdError::Timeout),
@@ -536,6 +540,20 @@ impl ContextToken {
             .await?
         {
             PortResponseData::PortStatus(status) => Ok(status),
+            _ => Err(PdError::InvalidResponse),
+        }
+    }
+
+    /// Get current controller status
+    pub async fn get_controller_status(
+        &self,
+        controller_id: ControllerId,
+    ) -> Result<ControllerStatus<'static>, PdError> {
+        match self
+            .send_controller_command(controller_id, InternalCommandData::Status, DEFAULT_TIMEOUT)
+            .await?
+        {
+            InternalResponseData::Status(status) => Ok(status),
             _ => Err(PdError::InvalidResponse),
         }
     }

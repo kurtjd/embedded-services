@@ -44,6 +44,7 @@ cortex-m.workspace = true
 
 [dev-dependencies]
 embassy-sync = { workspace = true, features = ["std"] }
+critical-section = { workspace = true, features = ["std"] }
 embassy-futures.workspace = true
 
 [features]

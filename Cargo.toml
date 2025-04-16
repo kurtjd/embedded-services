@@ -6,6 +6,7 @@ members = [
     "embedded-service",
     "espi-service",
     "hid-service",
+    "platform-service",
     "power-button-service",
     "power-policy-service",
     "storage-bus",

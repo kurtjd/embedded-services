@@ -1,0 +1,41 @@
+[package]
+name = "platform-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+defmt = { workspace = true, optional = true }
+embassy-executor.workspace = true
+embassy-sync.workspace = true
+embassy-time.workspace = true
+embedded-cfu-protocol.workspace = true
+embedded-services.workspace = true
+heapless.workspace = true
+log = { workspace = true, optional = true }
+embassy-imxrt = { workspace = true, optional = true, features = [
+    "unstable-pac",
+] }
+
+[features]
+# TODO find method to unblock CI gate without requiring chip specification at library level
+imxrt = ["embassy-imxrt/mimxrt633s"]
+imxrt685 = ["embassy-imxrt/mimxrt685s"]
+
+defmt = [
+    "dep:defmt",
+    "embedded-services/defmt",
+    "embassy-time/defmt",
+    "embassy-sync/defmt",
+    "embassy-executor/defmt",
+    "embedded-cfu-protocol/defmt",
+]
+log = [
+    "dep:log",
+    "embedded-services/log",
+    "embassy-time/log",
+    "embassy-sync/log",
+    "embassy-executor/log",
+    "embedded-cfu-protocol/log",
+]

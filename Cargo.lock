@@ -68,7 +68,7 @@ dependencies = [
  "embedded-batteries-async",
  "embedded-hal 1.0.0",
  "embedded-hal-async",
- "embedded-services",
+ "embedded-services 0.1.0",
  "log",
 ]
 
@@ -99,24 +99,30 @@ checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
 name = "bitfield"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c821a6e124197eb56d907ccc2188eab1038fb919c914f47976e64dd8dbc855d1"
+
+[[package]]
+name = "bitfield"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f798d2d157e547aa99aab0967df39edd0b70307312b6f8bd2848e6abe40896e0"
 
 [[package]]
 name = "bitfield"
-version = "0.18.1"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c7e6caee68becd795bfd65f1a026e4d00d8f0c2bc9be5eb568e1015f9ce3c34"
+checksum = "786e53b0c071573a28956cec19a92653e42de34c683e2f6e86c197a349fba318"
 dependencies = [
  "bitfield-macros",
 ]
 
 [[package]]
 name = "bitfield-macros"
-version = "0.18.1"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "331afbb18ce7b644c0b428726d369c5dd37ca0b815d72a459fcc2896c3c8ad32"
+checksum = "07805405d3f1f3a55aab895718b488821d40458f9188059909091ae0935c344a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -185,7 +191,7 @@ dependencies = [
  "embassy-sync",
  "embassy-time",
  "embedded-cfu-protocol",
- "embedded-services",
+ "embedded-services 0.1.0",
  "heapless 0.8.0",
  "log",
 ]
@@ -401,7 +407,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 [[package]]
 name = "embassy-executor"
 version = "0.7.0"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "cortex-m",
  "critical-section",
@@ -414,7 +420,7 @@ dependencies = [
 [[package]]
 name = "embassy-executor-macros"
 version = "0.6.2"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -425,7 +431,7 @@ dependencies = [
 [[package]]
 name = "embassy-futures"
 version = "0.1.1"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "defmt 0.3.100",
  "log",
@@ -434,7 +440,7 @@ dependencies = [
 [[package]]
 name = "embassy-hal-internal"
 version = "0.2.0"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "cortex-m",
  "critical-section",
@@ -445,7 +451,7 @@ dependencies = [
 [[package]]
 name = "embassy-imxrt"
 version = "0.1.0"
-source = "git+https://github.com/OpenDevicePartnership/embassy-imxrt#63fb93a53dfa3c7a94677eab3231612279854cb4"
+source = "git+https://github.com/OpenDevicePartnership/embassy-imxrt#ff0cc2e43d73078fb4bb2582127fdd9a57715b75"
 dependencies = [
  "cfg-if",
  "cortex-m",
@@ -465,20 +471,20 @@ dependencies = [
  "embedded-hal-nb",
  "embedded-io",
  "embedded-io-async",
- "embedded-storage",
- "embedded-storage-async",
  "fixed",
+ "mimxrt600-fcb",
  "mimxrt633s-pac",
  "mimxrt685s-pac",
  "nb 1.1.0",
  "paste",
  "rand_core",
+ "storage_bus 0.1.1 (git+https://github.com/OpenDevicePartnership/embedded-services)",
 ]
 
 [[package]]
 name = "embassy-sync"
 version = "0.6.2"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -493,7 +499,7 @@ dependencies = [
 [[package]]
 name = "embassy-time"
 version = "0.4.0"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -510,7 +516,7 @@ dependencies = [
 [[package]]
 name = "embassy-time-driver"
 version = "0.2.0"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "document-features",
 ]
@@ -518,7 +524,7 @@ dependencies = [
 [[package]]
 name = "embassy-time-queue-utils"
 version = "0.1.0"
-source = "git+https://github.com/embassy-rs/embassy#a137a160671d3ede48519e5faf316f31f6f6cbd3"
+source = "git+https://github.com/embassy-rs/embassy#2bb9c0f10dd66f3fcc058897ade0e60415067449"
 dependencies = [
  "embassy-executor",
  "heapless 0.8.0",
@@ -546,7 +552,7 @@ dependencies = [
 [[package]]
 name = "embedded-cfu-protocol"
 version = "0.1.0"
-source = "git+https://github.com/OpenDevicePartnership/embedded-cfu#08fc9dd47b4102ac9e2fe9741a7691554fdc5ee1"
+source = "git+https://github.com/OpenDevicePartnership/embedded-cfu#2a08534a094aab2b0d4d223435e03c538d45384e"
 dependencies = [
  "defmt 0.3.100",
  "embedded-io-async",
@@ -673,6 +679,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-services"
+version = "0.1.0"
+source = "git+https://github.com/OpenDevicePartnership/embedded-services#f50cbc34da00a7e3e7473adbd72669bf00e0f0cf"
+dependencies = [
+ "bitfield 0.17.0",
+ "bitflags 2.9.0",
+ "bitvec",
+ "cfg-if",
+ "cortex-m",
+ "cortex-m-rt",
+ "critical-section",
+ "document-features",
+ "embassy-executor",
+ "embassy-futures",
+ "embassy-sync",
+ "embassy-time",
+ "embedded-batteries-async",
+ "embedded-cfu-protocol",
+ "embedded-hal-async",
+ "embedded-hal-nb",
+ "embedded-io",
+ "embedded-io-async",
+ "embedded-storage",
+ "embedded-storage-async",
+ "embedded-usb-pd",
+ "fixed",
+ "heapless 0.8.0",
+ "postcard",
+ "rand_core",
+ "serde",
+]
+
+[[package]]
 name = "embedded-storage"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -690,9 +729,9 @@ dependencies = [
 [[package]]
 name = "embedded-usb-pd"
 version = "0.1.0"
-source = "git+https://github.com/OpenDevicePartnership/embedded-usb-pd#d91252d11f60cb6dabb123472ce23b7a745488d8"
+source = "git+https://github.com/OpenDevicePartnership/embedded-usb-pd#b57a8293f9d064363136f320f0a6d85a7def5e35"
 dependencies = [
- "bitfield 0.18.1",
+ "bitfield 0.19.0",
  "defmt 0.3.100",
  "embedded-hal-async",
 ]
@@ -717,7 +756,7 @@ dependencies = [
  "embassy-imxrt",
  "embassy-sync",
  "embassy-time",
- "embedded-services",
+ "embedded-services 0.1.0",
  "log",
 ]
 
@@ -854,7 +893,7 @@ dependencies = [
  "embassy-time",
  "embedded-hal 1.0.0",
  "embedded-hal-async",
- "embedded-services",
+ "embedded-services 0.1.0",
  "log",
 ]
 
@@ -894,6 +933,15 @@ name = "log"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
+
+[[package]]
+name = "mimxrt600-fcb"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1ebf867c0f22d440f0ad393c28d2007af23c08953b9111379dd711083ae19a9"
+dependencies = [
+ "bitfield 0.15.0",
+]
 
 [[package]]
 name = "mimxrt633s-pac"
@@ -970,6 +1018,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "platform-service"
+version = "0.1.0"
+dependencies = [
+ "defmt 0.3.100",
+ "embassy-executor",
+ "embassy-imxrt",
+ "embassy-sync",
+ "embassy-time",
+ "embedded-cfu-protocol",
+ "embedded-services 0.1.0",
+ "heapless 0.8.0",
+ "log",
+]
+
+[[package]]
 name = "postcard"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1000,7 +1063,7 @@ dependencies = [
  "embassy-futures",
  "embassy-sync",
  "embassy-time",
- "embedded-services",
+ "embedded-services 0.1.0",
  "log",
 ]
 
@@ -1144,8 +1207,19 @@ dependencies = [
  "embassy-executor",
  "embassy-sync",
  "embassy-time",
- "embedded-services",
+ "embedded-services 0.1.0",
  "log",
+]
+
+[[package]]
+name = "storage_bus"
+version = "0.1.1"
+source = "git+https://github.com/OpenDevicePartnership/embedded-services#f50cbc34da00a7e3e7473adbd72669bf00e0f0cf"
+dependencies = [
+ "embassy-executor",
+ "embassy-sync",
+ "embassy-time",
+ "embedded-services 0.1.0 (git+https://github.com/OpenDevicePartnership/embedded-services)",
 ]
 
 [[package]]
@@ -1238,7 +1312,7 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-hal-async",
  "embedded-io-async",
- "embedded-services",
+ "embedded-services 0.1.0",
  "embedded-usb-pd",
  "log",
  "tps6699x",
