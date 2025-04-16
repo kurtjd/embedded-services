@@ -1,10 +1,9 @@
 //! Thermal service
-pub mod fan;
-pub mod sensor;
-
-use crate::{error, intrusive_list};
+use crate::fan;
+use crate::sensor;
 use core::sync::atomic::{AtomicBool, Ordering};
 use embassy_sync::once_lock::OnceLock;
+use embedded_services::{error, intrusive_list};
 
 /// Error type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

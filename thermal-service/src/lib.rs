@@ -8,8 +8,12 @@ use embassy_time::Timer;
 use embedded_fans_async::{Fan, RpmSense};
 use embedded_sensors_hal_async::temperature::TemperatureSensor;
 use embedded_services::ec_type::message::ThermalMessage;
-use embedded_services::thermal::{self, fan, sensor};
 use embedded_services::{comms, error, info};
+
+pub mod context;
+pub mod fan;
+pub mod sensor;
+pub use context::*;
 
 struct InternalState {
     fan_on_temp: f32,
@@ -31,7 +35,7 @@ pub struct ServiceMsg {
 }
 
 pub struct ThermalService {
-    context: thermal::ContextToken,
+    context: context::ContextToken,
     tp: comms::Endpoint,
     request: Channel<NoopRawMutex, ServiceMsg, 1>,
     state: Mutex<NoopRawMutex, InternalState>,
@@ -45,9 +49,9 @@ pub enum ThermalServiceErrors {
 
 impl ThermalService {
     pub fn create() -> Option<Self> {
-        thermal::init();
+        context::init();
         Some(Self {
-            context: thermal::ContextToken::create()?,
+            context: context::ContextToken::create()?,
             tp: comms::Endpoint::uninit(comms::EndpointID::Internal(comms::Internal::Thermal)),
             request: Channel::new(),
             state: Mutex::new(InternalState::new()),

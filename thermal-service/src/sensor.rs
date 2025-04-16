@@ -1,12 +1,12 @@
-//! Fan Device
-use super::DeviceId;
-use crate::intrusive_list;
+//! Sensor Device
+use crate::context::DeviceId;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
-use embedded_fans_async as fan_traits;
+use embedded_sensors_hal_async::temperature::TemperatureSensor;
+use embedded_services::{intrusive_list, Node};
 
-/// Fan error type
+/// Sensor error type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
@@ -15,26 +15,24 @@ pub enum Error {
     // TODO: More errors
 }
 
-/// Fan request
+/// Sensor request
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Request {
-    /// Current RPM
-    CurRpm,
-    /// Set RPM
-    SetRpm(u32),
+    /// Current temperature measurement
+    CurTemp,
 }
 
-/// Fan response
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Sensor response
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Response {
     /// Acknowledge request and return data
-    Ack(u32),
+    Ack(f32),
 }
 
-/// Fan device struct
+/// Sensor device struct
 pub struct Device {
     /// Intrusive list node
-    node: intrusive_list::Node,
+    node: Node,
     /// Device ID
     id: DeviceId,
     /// Channel for requests to the device
@@ -47,7 +45,7 @@ impl Device {
     /// Create a new sensor device
     pub fn new(id: DeviceId) -> Self {
         Self {
-            node: intrusive_list::Node::uninit(),
+            node: Node::uninit(),
             id,
             request: Channel::new(),
             response: Channel::new(),
@@ -77,21 +75,21 @@ impl Device {
 }
 
 impl intrusive_list::NodeContainer for Device {
-    fn get_node(&self) -> &crate::Node {
+    fn get_node(&self) -> &Node {
         &self.node
     }
 }
 
-/// Fan struct containing device for comms and driver
-pub struct Fan<T: fan_traits::Fan + fan_traits::RpmSense> {
+/// Sensor struct containing device for comms and driver
+pub struct Sensor<T: TemperatureSensor> {
     /// Underlying device
     pub device: Device,
     /// Underlying driver
     pub driver: Mutex<NoopRawMutex, T>,
 }
 
-impl<T: fan_traits::Fan + fan_traits::RpmSense> Fan<T> {
-    /// New fan
+impl<T: TemperatureSensor> Sensor<T> {
+    /// New sensor
     pub fn new(id: DeviceId, driver: T) -> Self {
         Self {
             device: Device::new(id),
@@ -99,18 +97,14 @@ impl<T: fan_traits::Fan + fan_traits::RpmSense> Fan<T> {
         }
     }
 
-    /// Process request for fan
+    /// Process request for sensor
     /// If this functionality is too generic, a custom request process method can be written
     pub async fn process_request(&self) {
         let request = self.device.wait_request().await;
         match request {
-            Request::CurRpm => {
-                let rpm = self.driver.lock().await.rpm().await.unwrap();
-                self.device.send_response(Ok(Response::Ack(rpm as u32))).await;
-            }
-            Request::SetRpm(rpm) => {
-                self.driver.lock().await.set_speed_rpm(rpm as u16).await.unwrap();
-                self.device.send_response(Ok(Response::Ack(rpm))).await;
+            Request::CurTemp => {
+                let temp = self.driver.lock().await.temperature().await.unwrap();
+                self.device.send_response(Ok(Response::Ack(temp))).await;
             }
         }
     }
