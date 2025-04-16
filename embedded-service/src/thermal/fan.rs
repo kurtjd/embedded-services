@@ -1,9 +1,9 @@
 //! Fan Device
 use super::DeviceId;
 use crate::intrusive_list;
-use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_sync::mutex::Mutex;
 use embedded_fans_async as fan_traits;
 
 /// Fan error type
@@ -87,7 +87,7 @@ pub struct Fan<T: fan_traits::Fan + fan_traits::RpmSense> {
     /// Underlying device
     pub device: Device,
     /// Underlying driver
-    pub driver: RefCell<T>,
+    pub driver: Mutex<NoopRawMutex, T>,
 }
 
 impl<T: fan_traits::Fan + fan_traits::RpmSense> Fan<T> {
@@ -95,7 +95,7 @@ impl<T: fan_traits::Fan + fan_traits::RpmSense> Fan<T> {
     pub fn new(id: DeviceId, driver: T) -> Self {
         Self {
             device: Device::new(id),
-            driver: RefCell::new(driver),
+            driver: Mutex::new(driver),
         }
     }
 
@@ -105,11 +105,11 @@ impl<T: fan_traits::Fan + fan_traits::RpmSense> Fan<T> {
         let request = self.device.wait_request().await;
         match request {
             Request::CurRpm => {
-                let rpm = self.driver.borrow_mut().rpm().await.unwrap();
+                let rpm = self.driver.lock().await.rpm().await.unwrap();
                 self.device.send_response(Ok(Response::Ack(rpm as u32))).await;
             }
             Request::SetRpm(rpm) => {
-                self.driver.borrow_mut().set_speed_rpm(rpm as u16).await.unwrap();
+                self.driver.lock().await.set_speed_rpm(rpm as u16).await.unwrap();
                 self.device.send_response(Ok(Response::Ack(rpm))).await;
             }
         }

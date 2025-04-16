@@ -1,9 +1,9 @@
 //! Sensor Device
 use super::DeviceId;
 use crate::intrusive_list;
-use core::cell::RefCell;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_sync::mutex::Mutex;
 use embedded_sensors_hal_async::temperature::TemperatureSensor;
 
 /// Sensor error type
@@ -85,7 +85,7 @@ pub struct Sensor<T: TemperatureSensor> {
     /// Underlying device
     pub device: Device,
     /// Underlying driver
-    pub driver: RefCell<T>,
+    pub driver: Mutex<NoopRawMutex, T>,
 }
 
 impl<T: TemperatureSensor> Sensor<T> {
@@ -93,7 +93,7 @@ impl<T: TemperatureSensor> Sensor<T> {
     pub fn new(id: DeviceId, driver: T) -> Self {
         Self {
             device: Device::new(id),
-            driver: RefCell::new(driver),
+            driver: Mutex::new(driver),
         }
     }
 
@@ -103,7 +103,7 @@ impl<T: TemperatureSensor> Sensor<T> {
         let request = self.device.wait_request().await;
         match request {
             Request::CurTemp => {
-                let temp = self.driver.borrow_mut().temperature().await.unwrap();
+                let temp = self.driver.lock().await.temperature().await.unwrap();
                 self.device.send_response(Ok(Response::Ack(temp))).await;
             }
         }
