@@ -191,18 +191,13 @@ impl RpmSense for MockFan {
 // A task for each device
 // Device tasks can use the generic device task or implement their own
 #[embassy_executor::task]
-async fn sensor_task_0(sensor: &'static thermal_service::sensor::Sensor<MockSensor>) {
-    thermal_service::sensor_task(sensor).await;
+async fn sensor_task_0(sensor: &'static thermal_service::sensor::Wrapper<MockSensor>) {
+    thermal_service::sensor::sensor_task(sensor).await;
 }
 
 #[embassy_executor::task]
-async fn sensor_task_1(sensor: &'static thermal_service::sensor::Sensor<MockSensor>) {
-    thermal_service::sensor_task(sensor).await;
-}
-
-#[embassy_executor::task]
-async fn fan_task_0(fan: &'static thermal_service::fan::Fan<MockFan>) {
-    thermal_service::fan_task(fan).await;
+async fn fan_task_0(fan: &'static thermal_service::fan::Wrapper<MockFan>) {
+    thermal_service::fan::fan_task(fan).await;
 }
 
 #[embassy_executor::main]
@@ -217,23 +212,17 @@ async fn main(spawner: Spawner) {
     // We then register it with the thermal service (which stores it in a linked list)
     // Finally we spawn a task for that device, which typically entails waiting for messages then acting
 
-    info!("Creating sensor device 0");
-    static SENSOR_0: OnceLock<thermal_service::sensor::Sensor<MockSensor>> = OnceLock::new();
-    let sensor_0 = SENSOR_0
-        .get_or_init(|| thermal_service::sensor::Sensor::new(thermal_service::DeviceId(0), MockSensor::new(50.0)));
-    thermal_service::register_sensor(&sensor_0.device).await.unwrap();
-    spawner.must_spawn(sensor_task_0(sensor_0));
-
-    info!("Creating sensor device 1");
-    static SENSOR_1: OnceLock<thermal_service::sensor::Sensor<MockSensor>> = OnceLock::new();
-    let sensor_1 = SENSOR_1
-        .get_or_init(|| thermal_service::sensor::Sensor::new(thermal_service::DeviceId(1), MockSensor::new(52.0)));
-    thermal_service::register_sensor(&sensor_1.device).await.unwrap();
-    spawner.must_spawn(sensor_task_1(sensor_1));
+    info!("Creating sensor device");
+    static SENSOR: OnceLock<thermal_service::sensor::Wrapper<MockSensor>> = OnceLock::new();
+    let sensor = SENSOR.get_or_init(|| {
+        thermal_service::sensor::Wrapper::new(thermal_service::sensor::DeviceId(0), MockSensor::new(50.0))
+    });
+    thermal_service::register_sensor(&sensor.device).await.unwrap();
+    spawner.must_spawn(sensor_task_0(sensor));
 
     info!("Creating fan device");
-    static FAN: OnceLock<thermal_service::fan::Fan<MockFan>> = OnceLock::new();
-    let fan = FAN.get_or_init(|| thermal_service::fan::Fan::new(thermal_service::DeviceId(0), MockFan::new()));
+    static FAN: OnceLock<thermal_service::fan::Wrapper<MockFan>> = OnceLock::new();
+    let fan = FAN.get_or_init(|| thermal_service::fan::Wrapper::new(thermal_service::fan::DeviceId(0), MockFan::new()));
     thermal_service::register_fan(&fan.device).await.unwrap();
     spawner.must_spawn(fan_task_0(fan));
 }

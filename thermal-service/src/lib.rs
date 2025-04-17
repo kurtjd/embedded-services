@@ -5,8 +5,6 @@ use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::once_lock::OnceLock;
 use embassy_time::Timer;
-use embedded_fans_async::{Fan, RpmSense};
-use embedded_sensors_hal_async::temperature::TemperatureSensor;
 use embedded_services::ec_type::message::ThermalMessage;
 use embedded_services::{comms, error, info};
 
@@ -36,7 +34,7 @@ pub struct ServiceMsg {
 
 pub struct ThermalService {
     context: context::ContextToken,
-    tp: comms::Endpoint,
+    endpoint: comms::Endpoint,
     request: Channel<NoopRawMutex, ServiceMsg, 1>,
     state: Mutex<NoopRawMutex, InternalState>,
 }
@@ -52,7 +50,7 @@ impl ThermalService {
         context::init();
         Some(Self {
             context: context::ContextToken::create()?,
-            tp: comms::Endpoint::uninit(comms::EndpointID::Internal(comms::Internal::Thermal)),
+            endpoint: comms::Endpoint::uninit(comms::EndpointID::Internal(comms::Internal::Thermal)),
             request: Channel::new(),
             state: Mutex::new(InternalState::new()),
         })
@@ -121,7 +119,7 @@ impl ThermalService {
         let response = self.process_service_msg(&service_msg).await.unwrap();
 
         // Send a response back to service that sent the initial request
-        self.tp.send(service_msg.from, &response).await.unwrap();
+        self.endpoint.send(service_msg.from, &response).await.unwrap();
     }
 }
 
@@ -159,7 +157,7 @@ pub async fn thermal_service_task(spawner: embassy_executor::Spawner) {
     let service =
         SERVICE.get_or_init(|| ThermalService::create().expect("Thermal service singleton already initialized"));
 
-    if comms::register_endpoint(service, &service.tp).await.is_err() {
+    if comms::register_endpoint(service, &service.endpoint).await.is_err() {
         error!("Failed to register thermal service endpoint");
         return;
     }
@@ -194,23 +192,5 @@ pub async fn thermal_service_task(spawner: embassy_executor::Spawner) {
 
         // Just wait some time
         Timer::after_millis(1000).await;
-    }
-}
-
-/* Below are generic task functions for sensors and fans.
- * However, these don't need to be used and instead custom tasks can be written.
- */
-
-/// Should be called by a wrapper task per sensor (since tasks themselves cannot be generic)
-pub async fn sensor_task<T: TemperatureSensor>(sensor: &'static sensor::Sensor<T>) {
-    loop {
-        sensor.process_request().await;
-    }
-}
-
-/// Should be called by a wrapper task per fan (since tasks themselves cannot be generic)
-pub async fn fan_task<T: Fan + RpmSense>(fan: &'static fan::Fan<T>) {
-    loop {
-        fan.process_request().await;
     }
 }

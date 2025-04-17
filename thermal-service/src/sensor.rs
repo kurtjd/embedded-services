@@ -1,5 +1,4 @@
 //! Sensor Device
-use crate::context::DeviceId;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
@@ -28,6 +27,11 @@ pub enum Response {
     /// Acknowledge request and return data
     Ack(f32),
 }
+
+/// Device ID new type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct DeviceId(pub u8);
 
 /// Sensor device struct
 pub struct Device {
@@ -81,14 +85,14 @@ impl intrusive_list::NodeContainer for Device {
 }
 
 /// Sensor struct containing device for comms and driver
-pub struct Sensor<T: TemperatureSensor> {
+pub struct Wrapper<T: TemperatureSensor> {
     /// Underlying device
     pub device: Device,
     /// Underlying driver
     pub driver: Mutex<NoopRawMutex, T>,
 }
 
-impl<T: TemperatureSensor> Sensor<T> {
+impl<T: TemperatureSensor> Wrapper<T> {
     /// New sensor
     pub fn new(id: DeviceId, driver: T) -> Self {
         Self {
@@ -99,13 +103,24 @@ impl<T: TemperatureSensor> Sensor<T> {
 
     /// Process request for sensor
     /// If this functionality is too generic, a custom request process method can be written
-    pub async fn process_request(&self) {
+    pub async fn wait_and_process(&self) {
         let request = self.device.wait_request().await;
+        self.process_request(request).await;
+    }
+
+    async fn process_request(&self, request: Request) {
         match request {
             Request::CurTemp => {
                 let temp = self.driver.lock().await.temperature().await.unwrap();
                 self.device.send_response(Ok(Response::Ack(temp))).await;
             }
         }
+    }
+}
+
+/// Should be called by a wrapper task per sensor (since tasks themselves cannot be generic)
+pub async fn sensor_task<T: TemperatureSensor>(sensor: &'static Wrapper<T>) {
+    loop {
+        sensor.wait_and_process().await;
     }
 }

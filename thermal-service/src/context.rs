@@ -13,11 +13,6 @@ pub enum Error {
     InvalidDevice,
 }
 
-/// Device ID new type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct DeviceId(pub u8);
-
 struct Context {
     /// Registered temperature sensors
     sensors: intrusive_list::IntrusiveList,
@@ -36,7 +31,7 @@ impl Context {
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
 
-/// Init thermal service
+/// Init thermal service context
 pub fn init() {
     CONTEXT.get_or_init(Context::new);
 }
@@ -60,7 +55,7 @@ pub async fn register_fan(fan: &'static fan::Device) -> Result<(), intrusive_lis
 }
 
 /// Find a sensor by its ID
-async fn get_sensor(id: DeviceId) -> Option<&'static sensor::Device> {
+async fn get_sensor(id: sensor::DeviceId) -> Option<&'static sensor::Device> {
     for sensor in &CONTEXT.get().await.sensors {
         if let Some(data) = sensor.data::<sensor::Device>() {
             if data.id() == id {
@@ -75,7 +70,7 @@ async fn get_sensor(id: DeviceId) -> Option<&'static sensor::Device> {
 }
 
 /// Find a fan by its ID
-async fn get_fan(id: DeviceId) -> Option<&'static fan::Device> {
+async fn get_fan(id: fan::DeviceId) -> Option<&'static fan::Device> {
     for fan in &CONTEXT.get().await.fans {
         if let Some(data) = fan.data::<fan::Device>() {
             if data.id() == id {
@@ -91,7 +86,6 @@ async fn get_fan(id: DeviceId) -> Option<&'static fan::Device> {
 
 /// Singleton struct to give access to the thermal context
 pub struct ContextToken(());
-
 impl ContextToken {
     /// Create a new context token, returning None if this function has been called before
     pub fn create() -> Option<Self> {
@@ -105,7 +99,7 @@ impl ContextToken {
     }
 
     /// Get a sensor by its ID
-    pub async fn get_sensor(&self, id: DeviceId) -> Result<&'static sensor::Device, Error> {
+    pub async fn get_sensor(&self, id: sensor::DeviceId) -> Result<&'static sensor::Device, Error> {
         get_sensor(id).await.ok_or(Error::InvalidDevice)
     }
 
@@ -115,7 +109,7 @@ impl ContextToken {
     }
 
     /// Get a fan by its ID
-    pub async fn get_fan(&self, id: DeviceId) -> Result<&'static fan::Device, Error> {
+    pub async fn get_fan(&self, id: fan::DeviceId) -> Result<&'static fan::Device, Error> {
         get_fan(id).await.ok_or(Error::InvalidDevice)
     }
 
