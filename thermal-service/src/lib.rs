@@ -6,6 +6,7 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::once_lock::OnceLock;
 use embassy_time::Timer;
 use embedded_services::ec_type::message::ThermalMessage;
+use embedded_services::ecs::{Component, EntityRef, Layer};
 use embedded_services::{comms, error, info};
 
 pub mod context;
@@ -27,6 +28,7 @@ impl InternalState {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ServiceMsg {
     msg: ThermalMessage,
     from: comms::EndpointID,
@@ -112,15 +114,6 @@ impl ThermalService {
             _ => Err(ThermalServiceErrors::InvalidRequest),
         }
     }
-
-    // Handles received messages from other services
-    async fn handle_service_message(&self) {
-        let service_msg = self.request.receive().await;
-        let response = self.process_service_msg(&service_msg).await.unwrap();
-
-        // Send a response back to service that sent the initial request
-        self.endpoint.send(service_msg.from, &response).await.unwrap();
-    }
 }
 
 impl comms::MailboxDelegate for ThermalService {
@@ -140,14 +133,30 @@ impl comms::MailboxDelegate for ThermalService {
     }
 }
 
+struct GenericMessageBridge;
+impl Component<&ThermalService> for GenericMessageBridge {
+    type Event = ServiceMsg;
+
+    async fn wait_event(&self, entity: &&ThermalService) -> Self::Event {
+        entity.request.receive().await
+    }
+
+    async fn process(&self, entity: &mut &ThermalService, event: Self::Event) -> () {
+        let response = entity.process_service_msg(&event).await.unwrap();
+
+        // Send a response back to service that sent the initial request
+        entity.endpoint.send(event.from, &response).await.unwrap();
+    }
+}
+
 static SERVICE: OnceLock<ThermalService> = OnceLock::new();
 
 #[embassy_executor::task]
 pub async fn service_rx_task() {
-    let s = SERVICE.get().await;
+    let mut s = EntityRef::new(SERVICE.get().await).add_component(GenericMessageBridge);
 
     loop {
-        s.handle_service_message().await;
+        s.process_all().await;
     }
 }
 
