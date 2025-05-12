@@ -14,6 +14,7 @@ pub mod comms;
 pub mod ec_type;
 pub mod fmt;
 pub mod hid;
+pub mod init;
 pub mod keyboard;
 pub mod oem;
 pub mod power;
