@@ -648,9 +648,9 @@ checksum = "971cd616a2326c63f660375e485e2f4573575b0bd293d228d7817c2b07be3475"
 
 [[package]]
 name = "embedded-sensors-hal-async"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fa0eb7de28c2ea3ed7eeeb9e2d48470fa92728910ecf5468944c754a823d799"
+checksum = "5a7c199c35d51c8c2eff4a569f7c4267345313b5fbd31f188329c0b926eaed98"
 dependencies = [
  "embedded-sensors-hal",
  "paste",

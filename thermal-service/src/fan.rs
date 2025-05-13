@@ -118,8 +118,6 @@ pub trait Controller: fan_traits::Fan + fan_traits::RpmSense {
 
 /// Fan device struct
 pub struct Device {
-    /// Intrusive list node
-    node: Node,
     /// Device ID
     id: DeviceId,
     /// Channel for requests to the device
@@ -132,7 +130,6 @@ impl Device {
     /// Create a new sensor device
     pub fn new(id: DeviceId) -> Self {
         Self {
-            node: Node::uninit(),
             id,
             request: Channel::new(),
             response: Channel::new(),
@@ -161,7 +158,24 @@ impl Device {
     }
 }
 
-impl intrusive_list::NodeContainer for Device {
+/// Wrapper around Device for insertion into intrusive linked list
+pub struct DeviceNode {
+    /// Intrusive list node
+    node: Node,
+    /// Static reference to device
+    pub device: &'static Device,
+}
+
+impl DeviceNode {
+    pub fn new(device: &'static Device) -> Self {
+        Self {
+            node: Node::uninit(),
+            device,
+        }
+    }
+}
+
+impl intrusive_list::NodeContainer for DeviceNode {
     fn get_node(&self) -> &Node {
         &self.node
     }

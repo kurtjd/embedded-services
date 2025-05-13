@@ -55,8 +55,20 @@ pub async fn process_request<T: Controller + ?Sized>(controller: &mut T, request
             let temp = controller.temperature().await.map_err(|_| Error::HardwareFailure)?;
             Ok(Response::GetCurTemp(temp))
         }
-        Request::SetThresholdLow(_low) => todo!(),
-        Request::SetThresholdHigh(_low) => todo!(),
+        Request::SetThresholdLow(low) => {
+            controller
+                .set_temperature_threshold_low(low)
+                .await
+                .map_err(|_| Error::HardwareFailure)?;
+            Ok(Response::Success)
+        }
+        Request::SetThresholdHigh(high) => {
+            controller
+                .set_temperature_threshold_high(high)
+                .await
+                .map_err(|_| Error::HardwareFailure)?;
+            Ok(Response::Success)
+        }
         _ => Err(Error::InvalidRequest),
     }
 }
