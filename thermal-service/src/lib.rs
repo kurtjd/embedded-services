@@ -1,43 +1,63 @@
 #![no_std]
 
 pub use context::*;
+use default_handler::DefaultHandler;
 use embassy_sync::once_lock::OnceLock;
 use embedded_services::{comms, error, info};
 
-pub mod context;
+mod context;
+pub mod default_handler;
 pub mod fan;
 pub mod mptf;
 pub mod sensor;
+mod utils;
 
-pub struct Service {
+struct Service<M: mptf::Handler> {
     context: context::ContextToken,
     endpoint: comms::Endpoint,
+    mptf_handler: M,
 }
 
-impl Service {
-    fn create() -> Option<Self> {
+impl<M: mptf::Handler> Service<M> {
+    fn new(mptf_handler: M) -> Option<Self> {
         Some(Self {
             context: context::ContextToken::create()?,
             endpoint: comms::Endpoint::uninit(comms::EndpointID::Internal(comms::Internal::Thermal)),
+            mptf_handler,
         })
     }
 
+    async fn process_request(&self, request: mptf::Request) -> Result<mptf::Response, mptf::Error> {
+        match request {
+            mptf::Request::GetTmp(tzid) => self.mptf_handler.get_tmp(tzid).await,
+            mptf::Request::GetThrs(tzid) => self.mptf_handler.get_thrs(tzid).await,
+            mptf::Request::SetThrs(tzid, timeout, low, high) => {
+                self.mptf_handler.set_thrs(tzid, timeout, low, high).await
+            }
+            mptf::Request::SetScp(tzid, mode, acoustic_lim, power_lim) => {
+                self.mptf_handler.set_scp(tzid, mode, acoustic_lim, power_lim).await
+            }
+            mptf::Request::GetVar(uid) => self.mptf_handler.get_var(uid).await,
+            mptf::Request::SetVar(uid, val) => self.mptf_handler.set_var(uid, val).await,
+        }
+    }
+
     async fn wait_and_process(&self) {
-        let request = self.context.wait_request().await;
-        let response = self.context.process_request(request.msg).await;
-        self.endpoint.send(request.from, &response).await.unwrap()
+        let message = self.context.wait_request().await;
+        let response = self.process_request(message.request).await;
+        self.endpoint.send(message.from, &response).await.unwrap()
     }
 }
 
-impl comms::MailboxDelegate for Service {
+impl<M: mptf::Handler> comms::MailboxDelegate for Service<M> {
     fn receive(&self, message: &comms::Message) -> Result<(), comms::MailboxDelegateError> {
         // This method gets called by embedded-services any time a message is sent to this service.
         // We check if its a standard MPTF request, and if so, handle it ourselves.
         // Otherwise return error.
         if let Some(&msg) = message.data.get::<mptf::Request>() {
             self.context
-                .send_request_no_wait(context::ServiceRequest {
-                    msg,
+                .send_message_no_wait(context::Message {
+                    request: msg,
                     from: message.from,
                 })
                 .map_err(|_| comms::MailboxDelegateError::BufferFull)
@@ -48,53 +68,56 @@ impl comms::MailboxDelegate for Service {
 }
 
 // Just one instance of the service should be running
-static SERVICE: OnceLock<Service> = OnceLock::new();
+// TODO: Use Macro to make this all generic over MPTF Handler
+static SERVICE: OnceLock<Service<DefaultHandler>> = OnceLock::new();
 
 // This task exists solely to listen for incoming requests and then process them appropriately
 #[embassy_executor::task]
-pub async fn rx_task() {
-    let s = SERVICE.get().await;
+async fn rx_task() {
+    let service = SERVICE.get().await;
 
     loop {
-        s.wait_and_process().await;
+        service.wait_and_process().await;
     }
 }
 
 /// This must be called to initialize the Thermal service and spawn additional tasks
-pub async fn init(spawner: embassy_executor::Spawner) {
+pub async fn init(spawner: embassy_executor::Spawner, mptf_handler: DefaultHandler) {
     info!("Starting thermal service task");
-    let service = SERVICE.get_or_init(|| Service::create().expect("Thermal service singleton already initialized"));
+    context::init();
+    let service =
+        SERVICE.get_or_init(|| Service::new(mptf_handler).expect("Thermal service singleton already initialized"));
 
     if comms::register_endpoint(service, &service.endpoint).await.is_err() {
         error!("Failed to register thermal service endpoint");
         return;
     }
 
-    // But always spawn the task for receiving thermal messages
+    // Spawn the task for receiving thermal messages
     spawner.must_spawn(rx_task());
+
+    // Spawn the task for MPTF handler
+    // TODO: Make sure to spawn OEM task if default not used
+    spawner.must_spawn(default_handler::task(spawner));
 }
 
-/// Send a request to a sensor through the thermal service instead of directly.
-pub async fn execute_sensor_request(
-    id: sensor::DeviceId,
-    request: sensor::Request,
-) -> Result<sensor::Response, sensor::Error> {
+/// Send and wait for a request to complete, as opposed to sending through comms service.
+pub async fn execute_request(request: mptf::Request) -> Result<mptf::Response, mptf::Error> {
     let service = SERVICE.get().await;
-    let sensor = service
+    service
         .context
-        .get_sensor(id)
-        .await
-        .map_err(|_| sensor::Error::InvalidRequest)?;
-    sensor.execute_request(request).await
+        .send_message(Message::new(
+            request,
+            comms::EndpointID::External(comms::External::Host),
+        ))
+        .await;
+    let message = service.context.wait_request().await;
+    service.process_request(message.request).await
 }
 
-/// Send a request to a fan through the thermal service instead of directly.
-pub async fn execute_fan_request(id: fan::DeviceId, request: fan::Request) -> Result<fan::Response, fan::Error> {
+/// Used to send messages to other services from the Thermal service,
+/// such as notifying the Power service if CRT TEMP is reached.
+pub async fn send_service_msg(to: comms::EndpointID, data: &impl embedded_services::Any) {
     let service = SERVICE.get().await;
-    let fan = service
-        .context
-        .get_fan(id)
-        .await
-        .map_err(|_| fan::Error::InvalidRequest)?;
-    fan.execute_request(request).await
+    service.endpoint.send(to, data).await.expect("Infallible");
 }

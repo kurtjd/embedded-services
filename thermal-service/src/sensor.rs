@@ -1,18 +1,20 @@
 //! Sensor Device
+use crate::utils::SampleBuf;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
+use embassy_time::Timer;
 use embedded_sensors_hal_async::temperature::{TemperatureSensor, TemperatureThresholdWait};
-use embedded_services::{intrusive_list, oem, Node};
+use embedded_services::{intrusive_list, Node};
 
 /// Sensor error type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
-    /// An invalid request was received
+    /// Invalid request
     InvalidRequest,
     /// Device encountered a hardware failure
-    HardwareFailure,
+    Hardware,
 }
 
 /// Sensor request
@@ -20,14 +22,13 @@ pub enum Error {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Request {
     /// Current temperature measurement
-    GetCurTemp,
-    /// Set low alert thresholds
-    SetThresholdLow(f32),
-    /// Set high alert thresholds
-    SetThresholdHigh(f32),
-
-    /// OEM-specific request
-    Oem(oem::Message),
+    GetTemp,
+    /// Set low alert thresholds (in degrees Celsius)
+    SetAlertLow(f32),
+    /// Set high alert thresholds (in degrees Celsius)
+    SetAlertHigh(f32),
+    /// Set temperature sampling period (in ms)
+    SetSamplingPeriod(u64),
 }
 
 /// Sensor response
@@ -37,10 +38,16 @@ pub enum Response {
     /// Response for any request that is successful but does not require data
     Success,
     /// Current temperature of sensor in dC
-    GetCurTemp(f32),
+    Temp(f32),
+}
 
-    /// OEM-specific response
-    Oem(oem::Message),
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Alert {
+    /// High threshold was crossed
+    ThresholdLow,
+    /// Low threshold was crossed
+    ThresholdHigh,
 }
 
 /// Device ID new type
@@ -48,56 +55,29 @@ pub enum Response {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct DeviceId(pub u8);
 
-/// Generic process function which OEMs can still include in their trait override
-pub async fn process_request<T: Controller + ?Sized>(controller: &mut T, request: Request) -> Result<Response, Error> {
-    match request {
-        Request::GetCurTemp => {
-            let temp = controller.temperature().await.map_err(|_| Error::HardwareFailure)?;
-            Ok(Response::GetCurTemp(temp))
-        }
-        Request::SetThresholdLow(low) => {
-            controller
-                .set_temperature_threshold_low(low)
-                .await
-                .map_err(|_| Error::HardwareFailure)?;
-            Ok(Response::Success)
-        }
-        Request::SetThresholdHigh(high) => {
-            controller
-                .set_temperature_threshold_high(high)
-                .await
-                .map_err(|_| Error::HardwareFailure)?;
-            Ok(Response::Success)
-        }
-        _ => Err(Error::InvalidRequest),
-    }
-}
-
-/// Trait which driver implementers use to bridge gap between requests and hardware calls
-#[allow(async_fn_in_trait)]
-pub trait Controller: TemperatureSensor + TemperatureThresholdWait {
-    async fn process_request(&mut self, request: Request) -> Result<Response, Error> {
-        process_request(self, request).await
-    }
-}
-
 /// Sensor device struct
 pub struct Device {
+    /// Intrusive list node allowing Device to be contained in a list
+    node: Node,
     /// Device ID
     id: DeviceId,
     /// Channel for requests to the device
     request: Channel<NoopRawMutex, Request, 1>,
     /// Channel for responses from the device
     response: Channel<NoopRawMutex, Result<Response, Error>, 1>,
+    /// Channel for threshold alerts from this device
+    alert: Channel<NoopRawMutex, Alert, 1>,
 }
 
 impl Device {
     /// Create a new sensor device
     pub fn new(id: DeviceId) -> Self {
         Self {
+            node: Node::uninit(),
             id,
             request: Channel::new(),
             response: Channel::new(),
+            alert: Channel::new(),
         }
     }
 
@@ -106,74 +86,144 @@ impl Device {
         self.id
     }
 
-    /// Wait for a request
-    pub async fn wait_request(&self) -> Request {
-        self.request.receive().await
-    }
-
-    /// Send a response
-    pub async fn send_response(&self, response: Result<Response, Error>) {
-        self.response.send(response).await;
-    }
-
     /// Execute request and wait for response
     pub async fn execute_request(&self, request: Request) -> Result<Response, Error> {
         self.request.send(request).await;
         self.response.receive().await
     }
-}
 
-/// Wrapper around Device for insertion into intrusive linked list
-pub struct DeviceNode {
-    /// Intrusive list node
-    node: Node,
-    /// Static reference to device
-    pub device: &'static Device,
-}
+    pub async fn wait_alert(&self) -> Alert {
+        self.alert.receive().await
+    }
 
-impl DeviceNode {
-    pub fn new(device: &'static Device) -> Self {
-        Self {
-            node: Node::uninit(),
-            device,
-        }
+    /// Wait for a request
+    async fn wait_request(&self) -> Request {
+        self.request.receive().await
+    }
+
+    /// Send a response
+    async fn send_response(&self, response: Result<Response, Error>) {
+        self.response.send(response).await;
     }
 }
 
-impl intrusive_list::NodeContainer for DeviceNode {
+impl intrusive_list::NodeContainer for Device {
     fn get_node(&self) -> &Node {
         &self.node
     }
 }
 
-/// Sensor struct containing device for comms and driver
-pub struct Sensor<T: Controller> {
-    /// Underlying device
-    pub device: Device,
-    /// Underlying controller
-    pub controller: Mutex<NoopRawMutex, T>,
+// Internal sensor state
+struct State {
+    samples: SampleBuf<f32, 10>,
+    period: u64,
+    alert_low: f32,
+    alert_high: f32,
 }
 
-impl<T: Controller> Sensor<T> {
-    /// New sensor
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            samples: SampleBuf::new(),
+            period: 1000,
+            alert_low: f32::MAX,
+            alert_high: f32::MAX,
+        }
+    }
+}
+
+/// Wrapper binding a communication device, hardware driver, and additional state.
+pub struct Sensor<T: TemperatureSensor + TemperatureThresholdWait> {
+    /// Underlying device
+    device: Device,
+    /// Underlying driver
+    driver: Mutex<NoopRawMutex, T>,
+    /// Underlying sensor state
+    state: Mutex<NoopRawMutex, State>,
+}
+
+impl<T: TemperatureSensor + TemperatureThresholdWait> Sensor<T> {
+    /// New sensor wrapper
     pub fn new(id: DeviceId, controller: T) -> Self {
         Self {
             device: Device::new(id),
-            controller: Mutex::new(controller),
+            driver: Mutex::new(controller),
+            state: Mutex::new(State::default()),
         }
     }
 
     /// Process request for sensor
     pub async fn wait_and_process(&self) {
         let request = self.device.wait_request().await;
-        let response = self.controller.lock().await.process_request(request).await;
+        let response = self.process_request(request).await;
         self.device.send_response(response).await;
+    }
+
+    // Processes request by making actual driver calls
+    async fn process_request(&self, request: Request) -> Result<Response, Error> {
+        match request {
+            Request::GetTemp => {
+                let temp = self.state.lock().await.samples.recent();
+                Ok(Response::Temp(temp))
+            }
+            Request::SetAlertLow(low) => {
+                self.driver
+                    .lock()
+                    .await
+                    .set_temperature_threshold_low(low)
+                    .await
+                    .map_err(|_| Error::Hardware)?;
+
+                self.state.lock().await.alert_low = low;
+                Ok(Response::Success)
+            }
+            Request::SetAlertHigh(high) => {
+                self.driver
+                    .lock()
+                    .await
+                    .set_temperature_threshold_high(high)
+                    .await
+                    .map_err(|_| Error::Hardware)?;
+
+                self.state.lock().await.alert_high = high;
+                Ok(Response::Success)
+            }
+            Request::SetSamplingPeriod(period) => {
+                self.state.lock().await.period = period;
+                Ok(Response::Success)
+            }
+        }
     }
 }
 
-/// Should be called by a wrapper task per sensor (since tasks themselves cannot be generic)
-pub async fn task<T: Controller>(sensor: &'static Sensor<T>) {
+/// These should be called by a wrapper task per sensor (since tasks themselves cannot be generic, cannot define task here)
+// TODO: Add macro to make that easier, and a macro that spawns all tasks
+pub async fn rx_task<T: TemperatureSensor + TemperatureThresholdWait>(sensor: &'static Sensor<T>) {
     loop {
         sensor.wait_and_process().await;
+    }
+}
+
+pub async fn sample_task<T: TemperatureSensor + TemperatureThresholdWait>(sensor: &'static Sensor<T>) {
+    loop {
+        if let Ok(temp) = sensor.driver.lock().await.temperature().await {
+            sensor.state.lock().await.samples.push(temp);
+        }
+
+        Timer::after_millis(sensor.state.lock().await.period).await;
+    }
+}
+
+pub async fn alert_task<T: TemperatureSensor + TemperatureThresholdWait>(sensor: &'static Sensor<T>) {
+    loop {
+        if let Ok(alert_temp) = sensor.driver.lock().await.wait_for_temperature_threshold().await {
+            let alert = if alert_temp <= sensor.state.lock().await.alert_low {
+                Alert::ThresholdLow
+            } else {
+                Alert::ThresholdHigh
+            };
+
+            sensor.device.alert.send(alert).await;
+        }
     }
 }

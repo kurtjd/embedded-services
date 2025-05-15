@@ -7,6 +7,10 @@
 pub type TzId = u8;
 pub type Dword = u32;
 pub type DeciKelvin = Dword;
+pub type DegreesCelsius = f32;
+
+// Should we expect a str or just u128? Use str for now.
+pub type Uid = &'static str;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Error {
@@ -29,71 +33,16 @@ impl From<Error> for u8 {
 pub enum Request {
     // EC_THM_GET_TMP
     GetTmp(TzId),
-
     // EC_THM_GET_THRS
     GetThrs(TzId),
     // EC_THM_SET_THRS
     SetThrs(TzId, Dword, DeciKelvin, DeciKelvin),
-
     // EC_THM_SET_SCP
     SetScp(TzId, Dword, Dword, Dword),
-
-    // EC_THM_GET_VAR(218246e7-baf6-45f1-aa13-07e4845256b8)
-    GetCrtTemp,
-    // EC_THM_SET_VAR(218246e7-baf6-45f1-aa13-07e4845256b8)
-    SetCrtTemp(DeciKelvin),
-
-    // EC_THM_GET_VAR(22dc52d2-fd0b-47ab-95b8-26552f9831a5)
-    GetProcHotTemp,
-    // EC_THM_SET_VAR(22dc52d2-fd0b-47ab-95b8-26552f9831a5)
-    SetProcHotTemp(DeciKelvin),
-
-    // EC_THM_GET_VAR(23b4a025-cdfd-4af9-a411-37a24c574615)
-    GetProfileType,
-    // EC_THM_SET_VAR(23b4a025-cdfd-4af9-a411-37a24c574615)
-    SetProfileType(Dword),
-
-    // EC_THM_GET_VAR(ba17b567-c368-48d5-bc6f-a312a41583c1)
-    GetFanOnTemp,
-    // EC_THM_SET_VAR(ba17b567-c368-48d5-bc6f-a312a41583c1)
-    SetFanOnTemp(DeciKelvin),
-
-    // EC_THM_GET_VAR(3a62688c-d95b-4d2d-bacc-90d7a5816bcd)
-    GetFanRampTemp,
-    // EC_THM_SET_VAR(3a62688c-d95b-4d2d-bacc-90d7a5816bcd)
-    SetFanRampTemp(DeciKelvin),
-
-    // EC_THM_GET_VAR(dcb758b1-f0fd-4ec7-b2c0-ef1e2a547b76)
-    GetFanMaxTemp,
-    // EC_THM_SET_VAR(dcb758b1-f0fd-4ec7-b2c0-ef1e2a547b76)
-    SetFanMaxTemp(DeciKelvin),
-
-    // EC_THM_GET_VAR(db261c77-934b-45e2-9742-256c62badb7a)
-    GetFanMinRpm,
-
-    // EC_THM_GET_VAR(5cf839df-8be7-42b9-9ac5-3403ca2c8a6a)
-    GetFanMaxRpm,
-
-    // EC_THM_GET_VAR(adf95492-0776-4ffc-84f3-b6c8b5269683)
-    GetFanCurrentRpm,
-
-    // EC_THM_GET_VAR()
-    GetFanMinDba,
-
-    // EC_THM_GET_VAR()
-    GetFanMaxDba,
-
-    // EC_THM_GET_VAR()
-    GetFanCurrentDba,
-
-    // EC_THM_GET_VAR()
-    GetFanMinSones,
-
-    // EC_THM_GET_VAR()
-    GetFanMaxSones,
-
-    // EC_THM_GET_VAR()
-    GetFanCurrentSones,
+    // EC_THM_GET_VAR
+    GetVar(&'static str),
+    // EC_THM_SET_VAR
+    SetVar(&'static str, Dword),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -103,33 +52,8 @@ pub enum Response {
     GetThrs(Dword, DeciKelvin, DeciKelvin),
     SetThrs,
     SetScp,
-
-    // DWORD Variable - Thermal
-    GetCrtTemp(DeciKelvin),
-    SetCrtTemp,
-    GetProcHotTemp(DeciKelvin),
-    SetProcHotTemp,
-    GetProfileType(DeciKelvin),
-    SetProfileType,
-
-    // DWORD Variable - Fan
-    GetFanOnTemp(DeciKelvin),
-    SetFanOnTemp,
-    GetFanRampTemp(DeciKelvin),
-    SetFanRampTemp,
-    GetFanMaxTemp(DeciKelvin),
-    SetFanMaxTemp,
-    GetFanMinRpm(Dword),
-    GetFanMaxRpm(Dword),
-    GetFanCurrentRpm(Dword),
-
-    // DWORD Variable - Fan Optional
-    GetFanMinDba(Dword),
-    GetFanMaxDba(Dword),
-    GetFanCurrentDba(Dword),
-    GetFanMinSones(Dword),
-    GetFanMaxSones(Dword),
-    GetFanCurrentSones(Dword),
+    GetVar(Dword),
+    SetVar,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -137,4 +61,47 @@ pub enum Notify {
     Threshold,
     Critical,
     ProcHot,
+}
+
+// TODO: Remove this `allow`
+#[allow(async_fn_in_trait)]
+pub trait Handler {
+    async fn get_tmp(&self, tzid: TzId) -> Result<Response, Error>;
+    async fn get_thrs(&self, tzid: TzId) -> Result<Response, Error>;
+    async fn set_thrs(&self, tzid: TzId, timeout: Dword, low: DeciKelvin, high: DeciKelvin) -> Result<Response, Error>;
+    async fn set_scp(&self, tzid: TzId, mode: Dword, acoustic_lim: Dword, power_lim: Dword) -> Result<Response, Error>;
+    async fn get_var(&self, uid: Uid) -> Result<Response, Error>;
+    async fn set_var(&self, uid: Uid, val: Dword) -> Result<Response, Error>;
+}
+
+impl<T: Handler + ?Sized> Handler for &T {
+    #[inline]
+    async fn get_tmp(&self, tzid: TzId) -> Result<Response, Error> {
+        T::get_tmp(self, tzid).await
+    }
+
+    #[inline]
+    async fn get_thrs(&self, tzid: TzId) -> Result<Response, Error> {
+        T::get_thrs(self, tzid).await
+    }
+
+    #[inline]
+    async fn set_thrs(&self, tzid: TzId, timeout: Dword, low: DeciKelvin, high: DeciKelvin) -> Result<Response, Error> {
+        T::set_thrs(self, tzid, timeout, low, high).await
+    }
+
+    #[inline]
+    async fn set_scp(&self, tzid: TzId, mode: Dword, acoustic_lim: Dword, power_lim: Dword) -> Result<Response, Error> {
+        T::set_scp(self, tzid, mode, acoustic_lim, power_lim).await
+    }
+
+    #[inline]
+    async fn set_var(&self, uid: Uid, val: Dword) -> Result<Response, Error> {
+        T::set_var(self, uid, val).await
+    }
+
+    #[inline]
+    async fn get_var(&self, uid: Uid) -> Result<Response, Error> {
+        T::get_var(self, uid).await
+    }
 }

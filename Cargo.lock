@@ -1274,6 +1274,7 @@ dependencies = [
  "embedded-hal-async",
  "embedded-sensors-hal-async",
  "embedded-services 0.1.0",
+ "heapless 0.8.0",
  "log",
 ]
 
