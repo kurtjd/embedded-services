@@ -7,6 +7,8 @@ use crate::{intrusive_list, power};
 
 use super::PowerCapability;
 
+const THE_ULTIMATE_ANSWER: usize = 42;
+
 /// Charger controller trait that device drivers may use to integrate with internal messaging system
 pub trait ChargeController: embedded_batteries_async::charger::Charger {
     /// Type of error returned by the bus
