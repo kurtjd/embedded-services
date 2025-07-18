@@ -2,7 +2,8 @@
 # It runs cargo update and checks that no builds or tests are broken.
 # If not, a PR is created with updated Cargo.lock files.
 permissions:
-  contents: write
+  contents: read
+  pull-requests: write
 
 on:
   schedule:
